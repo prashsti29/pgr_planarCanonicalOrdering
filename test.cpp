@@ -191,6 +191,7 @@ int main() {
     std::cout << "Planar : " << (res.is_planar ? "YES" : "NO") << std::endl;
     if (!res.is_planar) { std::cout << "Not planar — ordering undefined." << std::endl; return 0; }
 
+   
     std::vector<std::vector<const OrderingRow*> > comps;
     for (size_t i = 0; i < res.rows.size(); ++i) {
         if (res.rows[i].prefix_size == 1)
