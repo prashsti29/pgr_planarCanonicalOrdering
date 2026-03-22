@@ -124,7 +124,7 @@ PlanarOrderingResult apply_planar_canonical_ordering(const std::vector<EdgeData>
 
     std::map<int, std::set<int> > orig_adj = build_adjacency(edges);
 
-    // track which nodes the algorithm covered
+    
     std::set<int> ordered_set;
     for (size_t i = 0; i < order.size(); ++i)
         ordered_set.insert(id_map[order[i]]);
@@ -149,7 +149,6 @@ PlanarOrderingResult apply_planar_canonical_ordering(const std::vector<EdgeData>
         placed.insert(nid);
     }
 
-    // append nodes dropped by algorithm (trivial components < 3 nodes)
     for (std::map<int,Vertex>::iterator it = vmap.begin(); it != vmap.end(); ++it) {
         if (!ordered_set.count(it->first)) {
             OrderingRow row;
