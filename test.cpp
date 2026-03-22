@@ -38,6 +38,8 @@ struct EdgeData {
 struct OrderingRow {
     int seq, node_id, prefix_size;
     std::vector<int> neighbors;
+    bool trivial;
+    OrderingRow() : seq(0), node_id(0), prefix_size(0), trivial(false) {}
 };
 
 struct PlanarOrderingResult {
@@ -65,7 +67,6 @@ Graph build_graph(const std::vector<EdgeData>& edges,
         Vertex v = add_vertex(g);
         vmap[*it] = v; id_map[v] = *it;
     }
-    // deduplicate undirected edges
     std::set<std::pair<int,int> > added;
     for (size_t i = 0; i < edges.size(); ++i) {
         int u = edges[i].source, v = edges[i].target;
@@ -122,6 +123,12 @@ PlanarOrderingResult apply_planar_canonical_ordering(const std::vector<EdgeData>
       boost::planar_canonical_ordering(g, emb, std::back_inserter(order)); }
 
     std::map<int, std::set<int> > orig_adj = build_adjacency(edges);
+
+    // track which nodes the algorithm covered
+    std::set<int> ordered_set;
+    for (size_t i = 0; i < order.size(); ++i)
+        ordered_set.insert(id_map[order[i]]);
+
     std::set<int> placed;
     int prefix_size = 0;
 
@@ -136,10 +143,22 @@ PlanarOrderingResult apply_planar_canonical_ordering(const std::vector<EdgeData>
         prefix_size++;
         OrderingRow row;
         row.seq = (int)result.rows.size() + 1;
-        row.node_id = nid; row.neighbors = nbrs; row.prefix_size = prefix_size;
+        row.node_id = nid; row.neighbors = nbrs;
+        row.prefix_size = prefix_size; row.trivial = false;
         result.rows.push_back(row);
         placed.insert(nid);
     }
+
+    // append nodes dropped by algorithm (trivial components < 3 nodes)
+    for (std::map<int,Vertex>::iterator it = vmap.begin(); it != vmap.end(); ++it) {
+        if (!ordered_set.count(it->first)) {
+            OrderingRow row;
+            row.seq = (int)result.rows.size() + 1;
+            row.node_id = it->first; row.prefix_size = 1; row.trivial = true;
+            result.rows.push_back(row);
+        }
+    }
+
     return result;
 }
 
@@ -172,7 +191,7 @@ int main() {
     std::cout << "Planar : " << (res.is_planar ? "YES" : "NO") << std::endl;
     if (!res.is_planar) { std::cout << "Not planar — ordering undefined." << std::endl; return 0; }
 
-    // group into components
+    // group into components by prefix_size reset
     std::vector<std::vector<const OrderingRow*> > comps;
     for (size_t i = 0; i < res.rows.size(); ++i) {
         if (res.rows[i].prefix_size == 1)
@@ -185,15 +204,27 @@ int main() {
 
     for (size_t c = 0; c < comps.size(); ++c) {
         const std::vector<const OrderingRow*>& comp = comps[c];
-        std::cout << "\nComponent " << c+1 << " (" << comp.size() << " nodes)"
-                  << "  anchors: " << comp.front()->node_id
-                  << " (v1) -> "   << comp.back()->node_id << " (vn)" << std::endl;
+        bool is_trivial = comp.front()->trivial;
+
+        std::cout << "\nComponent " << c+1 << " (" << comp.size() << " nodes)";
+        if (is_trivial)
+            std::cout << "  [isolated — skipped by ordering algorithm]" << std::endl;
+        else
+            std::cout << "  anchors: " << comp.front()->node_id
+                      << " (v1) -> " << comp.back()->node_id << " (vn)" << std::endl;
+
         std::cout << "  sequence : ";
         for (size_t i = 0; i < comp.size(); ++i) { if (i) std::cout << " -> "; std::cout << comp[i]->node_id; }
         std::cout << std::endl;
-        std::cout << "  prior neighbors: ";
-        for (size_t i = 0; i < comp.size(); ++i) { if (i) std::cout << "  "; std::cout << comp[i]->node_id << ":" << comp[i]->neighbors.size(); }
-        std::cout << std::endl;
+
+        if (!is_trivial) {
+            std::cout << "  prior neighbors: ";
+            for (size_t i = 0; i < comp.size(); ++i) {
+                if (i) std::cout << "  ";
+                std::cout << comp[i]->node_id << ":" << comp[i]->neighbors.size();
+            }
+            std::cout << std::endl;
+        }
     }
     return 0;
 }
